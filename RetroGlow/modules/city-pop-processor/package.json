@@ -1,0 +1,11 @@
+{
+    "name": "city-pop-processor",
+    "version": "1.0.0",
+    "description": "Custom City Pop image processing module for Expo",
+    "main": "index.ts",
+    "peerDependencies": {
+        "expo": "*",
+        "react": "*",
+        "react-native": "*"
+    }
+}

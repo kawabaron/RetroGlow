@@ -45,7 +45,8 @@
     "react-native-worklets": "0.5.1",
     "tabler-icons-react-native": "^3.1.0",
     "tailwindcss": "^3.3.2",
-    "zustand": "^5.0.11"
+    "zustand": "^5.0.11",
+    "city-pop-processor": "file:./modules/city-pop-processor"
   },
   "devDependencies": {
     "@types/react": "~19.1.0",
