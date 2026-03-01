@@ -1,0 +1,8 @@
+{
+    "name": "city-pop-processor",
+    "ios": {
+        "modules": [
+            "CityPopProcessorModule"
+        ]
+    }
+}
