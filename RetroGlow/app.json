@@ -52,8 +52,7 @@
           "photosPermission": "The app needs to save the generated image to your library.",
           "savePhotosPermission": "The app needs your permission to save photos."
         }
-      ],
-      "city-pop-processor"
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
