@@ -1,5 +1,8 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-const expo_1 = require("expo");
-exports.default = (0, expo_1.requireNativeModule)('CityPopProcessor');
+const CityPopProcessorModule_1 = __importDefault(require("./src/CityPopProcessorModule"));
+exports.default = CityPopProcessorModule_1.default;
 //# sourceMappingURL=index.js.map

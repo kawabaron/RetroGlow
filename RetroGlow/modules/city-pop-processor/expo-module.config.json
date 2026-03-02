@@ -1,6 +1,9 @@
 {
     "name": "city-pop-processor",
-    "ios": {
+    "platforms": [
+        "apple"
+    ],
+    "apple": {
         "modules": [
             "CityPopProcessorModule"
         ]
