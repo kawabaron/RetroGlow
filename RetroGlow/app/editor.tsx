@@ -46,7 +46,8 @@ export default function EditorScreen() {
         if (!inputUri) return;
         setIsRenderingPreview(true);
         try {
-            const outputUri = `${FileSystem.cacheDirectory}preview_${Date.now()}.jpg`;
+            const baseDir = FileSystem.cacheDirectory || FileSystem.documentDirectory || 'file://';
+            const outputUri = `${baseDir}preview_${Date.now()}.jpg`;
             const result = await CityPopProcessor.process({
                 inputUri,
                 outputUri,
@@ -70,7 +71,8 @@ export default function EditorScreen() {
 
     const renderFinal = async () => {
         if (!inputUri) return null;
-        const outputUri = `${FileSystem.cacheDirectory}final_${Date.now()}.jpg`;
+        const baseDir = FileSystem.cacheDirectory || FileSystem.documentDirectory || 'file://';
+        const outputUri = `${baseDir}final_${Date.now()}.jpg`;
         const result = await CityPopProcessor.process({
             inputUri,
             outputUri,
