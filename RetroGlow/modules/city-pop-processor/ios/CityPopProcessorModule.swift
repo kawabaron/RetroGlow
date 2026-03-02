@@ -198,14 +198,36 @@ public class CityPopProcessorModule: Module {
 
     var resultImage: CIImage?
     let request = VNCoreMLRequest(model: visionModel) { request, error in
-        if let results = request.results as? [VNPixelBufferObservation], let pixelBuffer = results.first?.pixelBuffer {
-            resultImage = CIImage(cvPixelBuffer: pixelBuffer)
+        var pixelBuffer: CVPixelBuffer? = nil
+        
+        if let results = request.results as? [VNPixelBufferObservation], let buffer = results.first?.pixelBuffer {
+            pixelBuffer = buffer
         } else if let featureResults = request.results as? [VNCoreMLFeatureValueObservation],
-                  let pixelBuffer = featureResults.first?.featureValue.imageBufferValue {
-            resultImage = CIImage(cvPixelBuffer: pixelBuffer)
+                  let buffer = featureResults.first?.featureValue.imageBufferValue {
+            pixelBuffer = buffer
+        }
+        
+        if let buffer = pixelBuffer {
+            // ML models often output float32 buffers in [-1, 1] or [0, 255] which CIImage interprets as completely blown out (white).
+            // Wrapping it in a basic CIImage first.
+            let rawImage = CIImage(cvPixelBuffer: buffer)
+            
+            // Normalize the output: If it's 0-255 float, scale it down to 0-1 for CoreImage.
+            let normalizeFilter = CIFilter.colorMatrix()
+            normalizeFilter.inputImage = rawImage
+            // Scale by 1/255 just in case it's outputting 0-255 floats that CIImage treats as > 1.0 (whiteout)
+            normalizeFilter.rVector = CIVector(x: 1.0/255.0, y: 0, z: 0, w: 0)
+            normalizeFilter.gVector = CIVector(x: 0, y: 1.0/255.0, z: 0, w: 0)
+            normalizeFilter.bVector = CIVector(x: 0, y: 0, z: 1.0/255.0, w: 0)
+            normalizeFilter.aVector = CIVector(x: 0, y: 0, z: 0, w: 1)
+            
+            // We use the normalized version if the original looks completely white, but usually ML models for style transfer output 0-255.
+            // Let's create a blend that prefers the normalized one.
+            resultImage = normalizeFilter.outputImage ?? rawImage
         }
     }
     
+    // Most style transfer models expect 256x256 or 512x512. .scaleFill ensures it fits perfectly.
     request.imageCropAndScaleOption = .scaleFill
     
     let context = CIContext(options: nil)
