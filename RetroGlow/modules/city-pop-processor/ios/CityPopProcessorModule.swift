@@ -70,7 +70,14 @@ public class CityPopProcessorModule: Module {
     
     // 6. Scale both to Target Size
     colorBase = formatMainLayer(input: colorBase, targetSize: targetSize)
-    let scaledSketch = formatMainLayer(input: illustratedImage, targetSize: targetSize)
+    var scaledSketch = formatMainLayer(input: illustratedImage, targetSize: targetSize)
+    
+    // 6.5. Boost Sketch Contrast (Make lines darker and white purer before blending)
+    let sketchControls = CIFilter.colorControls()
+    sketchControls.inputImage = scaledSketch
+    sketchControls.contrast = 1.8 // Highly increase contrast of the ML output
+    sketchControls.brightness = -0.1 // Slightly darken the lines
+    scaledSketch = sketchControls.outputImage ?? scaledSketch
 
     // 7. MULTIPLY BLEND: This makes the white background of the sketch transparent,
     // and multiplies the black lines onto the colorBase.
@@ -245,8 +252,8 @@ public class CityPopProcessorModule: Module {
     let finalControls = CIFilter.colorControls()
     finalControls.inputImage = main
     finalControls.saturation = 1.3 + Float((tone - 0.5) * 1.0)
-    finalControls.contrast = 1.1 + Float((tone - 0.5) * 0.3)
-    finalControls.brightness = 0.05
+    finalControls.contrast = 1.0 + Float((tone - 0.5) * 0.3) // Lowered contrast
+    finalControls.brightness = -0.1 // Darken the base so lines and neon pop more
     main = finalControls.outputImage ?? main
 
     // --- Shift colors toward Retro City Pop tones ---
