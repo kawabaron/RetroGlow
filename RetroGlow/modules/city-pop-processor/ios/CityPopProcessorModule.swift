@@ -65,15 +65,28 @@ public class CityPopProcessorModule: Module {
     // 4. Ensure AI Output is scaled back to Target Size (as models often resize to 512x512 etc.)
     var mainImage = formatMainLayer(input: illustratedImage, targetSize: targetSize)
     
-    // 5. Apply City Pop Tone
-    mainImage = applyCityPopToneMapping(input: mainImage, tone: CGFloat(args.tone), mood: args.mood)
+    // 5. Apply City Pop Tone to the original image (not the sketch) to serve as the color base
+    var colorBase = applyCityPopToneMapping(input: preCropped, tone: CGFloat(args.tone), mood: args.mood)
     
-    // 6. Apply Neon Glow
+    // 6. Scale both to Target Size
+    colorBase = formatMainLayer(input: colorBase, targetSize: targetSize)
+    let scaledSketch = formatMainLayer(input: illustratedImage, targetSize: targetSize)
+
+    // 7. MULTIPLY BLEND: This makes the white background of the sketch transparent,
+    // and multiplies the black lines onto the colorBase.
+    guard let multiplyFilter = CIFilter(name: "CIMultiplyBlendMode") else {
+        throw NSError(domain: "CityPop", code: 3, userInfo: [NSLocalizedDescriptionKey: "Multiply Filter failed"])
+    }
+    multiplyFilter.setValue(scaledSketch, forKey: kCIInputImageKey)
+    multiplyFilter.setValue(colorBase, forKey: kCIInputBackgroundImageKey)
+    var mainImage = multiplyFilter.outputImage ?? colorBase
+    
+    // 8. Apply Neon Glow to the combined result
     mainImage = applyNeon(input: mainImage, neon: CGFloat(args.neon))
 
-    // Composite Over Background
+    // Composite Over Background (the blurred bounding box)
     guard let compositeFilter = CIFilter(name: "CISourceOverCompositing") else {
-      throw NSError(domain: "CityPop", code: 3, userInfo: [NSLocalizedDescriptionKey: "Filter failed"])
+      throw NSError(domain: "CityPop", code: 4, userInfo: [NSLocalizedDescriptionKey: "Composite Filter failed"])
     }
     compositeFilter.setValue(mainImage, forKey: kCIInputImageKey)
     compositeFilter.setValue(bgImage, forKey: kCIInputBackgroundImageKey)
@@ -219,10 +232,21 @@ public class CityPopProcessorModule: Module {
     var main = input
     
     // --- City Pop Tone Mapping ---
+    // Make the base color flat and bright so it looks like anime coloring
+    let gammaAdjust = CIFilter.gammaAdjust()
+    gammaAdjust.inputImage = main
+    gammaAdjust.power = 0.7 // Brighten midtones significantly
+    main = gammaAdjust.outputImage ?? main
+
+    let posterize = CIFilter.colorPosterize()
+    posterize.inputImage = main
+    posterize.levels = 6.0 // Flatten colors
+    main = posterize.outputImage ?? main
+
     let finalControls = CIFilter.colorControls()
     finalControls.inputImage = main
-    finalControls.saturation = 1.1 + Float((tone - 0.5) * 1.0)
-    finalControls.contrast = 1.0 + Float((tone - 0.5) * 0.3)
+    finalControls.saturation = 1.3 + Float((tone - 0.5) * 1.0)
+    finalControls.contrast = 1.1 + Float((tone - 0.5) * 0.3)
     finalControls.brightness = 0.05
     main = finalControls.outputImage ?? main
 
@@ -232,17 +256,14 @@ public class CityPopProcessorModule: Module {
     
     switch mood.lowercased() {
     case "night":
-        // Cool blue/purple emphasis
         matrix.rVector = CIVector(x: 0.9, y: 0.0, z: 0.15, w: 0.0)
         matrix.gVector = CIVector(x: 0.0, y: 0.9, z: 0.15, w: 0.0)
         matrix.bVector = CIVector(x: 0.0, y: 0.1, z: 1.15, w: 0.0)
     case "sunset":
-        // Warm orange/red emphasis
         matrix.rVector = CIVector(x: 1.15, y: 0.1, z: 0.0, w: 0.0)
         matrix.gVector = CIVector(x: 0.1, y: 0.95, z: 0.0, w: 0.0)
         matrix.bVector = CIVector(x: 0.0, y: 0.0, z: 0.9, w: 0.0)
     case "afterglow":
-        // Pinkish neon vaporwave feel
         matrix.rVector = CIVector(x: 1.1, y: 0.0, z: 0.15, w: 0.0)
         matrix.gVector = CIVector(x: 0.0, y: 0.95, z: 0.1, w: 0.0)
         matrix.bVector = CIVector(x: 0.1, y: 0.1, z: 1.1, w: 0.0)
