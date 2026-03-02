@@ -55,7 +55,7 @@ public class CityPopProcessorModule: Module {
     let bgImage = createBackgroundLayer(input: ciInputImage, targetSize: targetSize, mood: args.mood)
     
     // 2. Create Main Overlay (Center Cropped to 9:16)
-    var mainImage = createMainLayer(input: ciInputImage, targetSize: targetSize, tone: CGFloat(args.tone))
+    var mainImage = createMainLayer(input: ciInputImage, targetSize: targetSize, tone: CGFloat(args.tone), mood: args.mood)
     
     // 3. Apply Neon Glow
     mainImage = applyNeon(input: mainImage, neon: CGFloat(args.neon))
@@ -139,7 +139,7 @@ public class CityPopProcessorModule: Module {
     return colorMatrix.outputImage ?? bg
   }
 
-  private func createMainLayer(input: CIImage, targetSize: CGSize, tone: CGFloat) -> CIImage {
+  private func createMainLayer(input: CIImage, targetSize: CGSize, tone: CGFloat, mood: String) -> CIImage {
     // 9:16 aspect ratio center crop
     let inputAspect = input.extent.width / input.extent.height
     let targetAspect = 9.0 / 16.0
@@ -164,13 +164,53 @@ public class CityPopProcessorModule: Module {
     main = main.transformed(by: CGAffineTransform(scaleX: mainScale, y: mainScale))
     main = main.transformed(by: CGAffineTransform(translationX: -main.extent.origin.x, y: -main.extent.origin.y))
     
-    // Apply Tone mapping (simple exposure / saturation adjustment for now)
+    // --- Step 1: Line Art & Illustration Effect (Comic) ---
+    let comic = CIFilter.comicEffect()
+    comic.inputImage = main
+    main = comic.outputImage ?? main
+    
+    // --- Step 2: Posterize for Flat Anime Colors ---
+    let posterize = CIFilter.colorPosterize()
+    posterize.inputImage = main
+    posterize.levels = 5.0 // Reduce colors to create a painted look
+    main = posterize.outputImage ?? main
+    
+    // --- Step 3: City Pop Tone Mapping ---
     let controls = CIFilter.colorControls()
     controls.inputImage = main
-    controls.saturation = 1.0 + Float((tone - 0.5) * 1.0) // Boost saturation slightly
-    controls.contrast = 1.0 + Float((tone - 0.5) * 0.5) 
+    controls.saturation = 1.3 + Float((tone - 0.5) * 1.5) // High saturation
+    controls.contrast = 1.2 + Float((tone - 0.5) * 0.5)
+    main = controls.outputImage ?? main
+
+    // --- Step 4: Shift colors toward Retro tones based on mood ---
+    let matrix = CIFilter.colorMatrix()
+    matrix.inputImage = main
     
-    return controls.outputImage ?? main
+    switch mood.lowercased() {
+    case "night":
+        // Deep blues & magentas
+        matrix.rVector = CIVector(x: 0.9, y: 0.0, z: 0.2, w: 0.0)
+        matrix.gVector = CIVector(x: 0.0, y: 0.8, z: 0.2, w: 0.0)
+        matrix.bVector = CIVector(x: 0.0, y: 0.0, z: 1.3, w: 0.0)
+    case "sunset":
+        // Strong reds & purples
+        matrix.rVector = CIVector(x: 1.3, y: 0.0, z: 0.0, w: 0.0)
+        matrix.gVector = CIVector(x: 0.2, y: 0.9, z: 0.0, w: 0.0)
+        matrix.bVector = CIVector(x: 0.0, y: 0.0, z: 0.9, w: 0.0)
+    case "afterglow":
+        // Pinkish neon hue
+        matrix.rVector = CIVector(x: 1.2, y: 0.0, z: 0.0, w: 0.0)
+        matrix.gVector = CIVector(x: 0.0, y: 0.9, z: 0.0, w: 0.0)
+        matrix.bVector = CIVector(x: 0.0, y: 0.0, z: 1.1, w: 0.0)
+    default:
+        matrix.rVector = CIVector(x: 1.15, y: 0.0, z: 0.0, w: 0.0)
+        matrix.gVector = CIVector(x: 0.0, y: 0.95, z: 0.0, w: 0.0)
+        matrix.bVector = CIVector(x: 0.0, y: 0.0, z: 1.15, w: 0.0)
+    }
+    matrix.aVector = CIVector(x: 0.0, y: 0.0, z: 0.0, w: 1.0)
+    main = matrix.outputImage ?? main
+    
+    return main
   }
 
   private func applyNeon(input: CIImage, neon: CGFloat) -> CIImage {
