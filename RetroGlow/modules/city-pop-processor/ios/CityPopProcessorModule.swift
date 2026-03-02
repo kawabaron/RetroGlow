@@ -70,8 +70,8 @@ public class CityPopProcessorModule: Module {
     finalCImage = applyTitle(input: finalCImage, title: args.title, targetSize: targetSize)
 
     // Render to JPEG
-    guard let colorSpace = finalCImage.colorSpace ?? CGColorSpaceCreateDeviceRGB(),
-          let outputCGImage = context.createCGImage(finalCImage, from: finalCImage.extent) else {
+    let colorSpace = finalCImage.colorSpace ?? CGColorSpaceCreateDeviceRGB()
+    guard let outputCGImage = context.createCGImage(finalCImage, from: finalCImage.extent) else {
       throw NSError(domain: "CityPop", code: 4, userInfo: [NSLocalizedDescriptionKey: "Render failed"])
     }
 
@@ -196,7 +196,7 @@ public class CityPopProcessorModule: Module {
     
     let noiseColor = CIFilter.colorMatrix()
     noiseColor.inputImage = noiseImage
-    let alpha = Float(grain * 0.2)
+    let alpha = CGFloat(grain * 0.2)
     noiseColor.rVector = CIVector(x: 0, y: 1, z: 0, w: 0)
     noiseColor.gVector = CIVector(x: 0, y: 1, z: 0, w: 0)
     noiseColor.bVector = CIVector(x: 0, y: 1, z: 0, w: 0)
