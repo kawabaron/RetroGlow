@@ -76,11 +76,9 @@ public class CityPopProcessorModule: Module {
     // and multiplies the black lines onto the colorBase.
     guard let multiplyFilter = CIFilter(name: "CIMultiplyBlendMode") else {
         throw NSError(domain: "CityPop", code: 3, userInfo: [NSLocalizedDescriptionKey: "Multiply Filter failed"])
-    }
     multiplyFilter.setValue(scaledSketch, forKey: kCIInputImageKey)
     multiplyFilter.setValue(colorBase, forKey: kCIInputBackgroundImageKey)
     var mainImage = multiplyFilter.outputImage ?? colorBase
-    
     // 8. Apply Neon Glow to the combined result
     mainImage = applyNeon(input: mainImage, neon: CGFloat(args.neon))
 
@@ -330,7 +328,6 @@ public class CityPopProcessorModule: Module {
     
     let fontSize = h * 0.065
     let x = w * 0.07
-    let y = h * (1.0 - 0.78)
 
     var line1 = title
     var line2 = ""
