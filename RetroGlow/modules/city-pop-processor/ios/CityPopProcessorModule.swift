@@ -65,28 +65,11 @@ public class CityPopProcessorModule: Module {
     // 4. Ensure AI Output is scaled back to Target Size (as models often resize to 512x512 etc.)
     var mainImage = formatMainLayer(input: illustratedImage, targetSize: targetSize)
     
-    // 5. Apply City Pop Tone to the original image (not the sketch) to serve as the color base
-    var colorBase = applyCityPopToneMapping(input: preCropped, tone: CGFloat(args.tone), mood: args.mood)
+    // 5. Apply City Pop Tone directly to the ML output
+    let toneMappedMLOutput = applyCityPopToneMapping(input: illustratedImage, tone: CGFloat(args.tone), mood: args.mood)
     
-    // 6. Scale both to Target Size
-    colorBase = formatMainLayer(input: colorBase, targetSize: targetSize)
-    var scaledSketch = formatMainLayer(input: illustratedImage, targetSize: targetSize)
-    
-    // 6.5. Boost Sketch Contrast (Make lines darker and white purer before blending)
-    let sketchControls = CIFilter.colorControls()
-    sketchControls.inputImage = scaledSketch
-    sketchControls.contrast = 1.8 // Highly increase contrast of the ML output
-    sketchControls.brightness = -0.1 // Slightly darken the lines
-    scaledSketch = sketchControls.outputImage ?? scaledSketch
-
-    // 7. MULTIPLY BLEND: This makes the white background of the sketch transparent,
-    // and multiplies the black lines onto the colorBase.
-    guard let multiplyFilter = CIFilter(name: "CIMultiplyBlendMode") else {
-        throw NSError(domain: "CityPop", code: 3, userInfo: [NSLocalizedDescriptionKey: "Multiply Filter failed"])
-    }
-    multiplyFilter.setValue(scaledSketch, forKey: kCIInputImageKey)
-    multiplyFilter.setValue(colorBase, forKey: kCIInputBackgroundImageKey)
-    mainImage = multiplyFilter.outputImage ?? colorBase
+    // 6. Scale back to Target Size
+    var mainImage = formatMainLayer(input: toneMappedMLOutput, targetSize: targetSize)
     // 8. Apply Neon Glow to the combined result
     mainImage = applyNeon(input: mainImage, neon: CGFloat(args.neon))
 
@@ -238,22 +221,11 @@ public class CityPopProcessorModule: Module {
     var main = input
     
     // --- City Pop Tone Mapping ---
-    // Make the base color flat and bright so it looks like anime coloring
-    let gammaAdjust = CIFilter.gammaAdjust()
-    gammaAdjust.inputImage = main
-    gammaAdjust.power = 0.7 // Brighten midtones significantly
-    main = gammaAdjust.outputImage ?? main
-
-    let posterize = CIFilter.colorPosterize()
-    posterize.inputImage = main
-    posterize.levels = 6.0 // Flatten colors
-    main = posterize.outputImage ?? main
-
     let finalControls = CIFilter.colorControls()
     finalControls.inputImage = main
-    finalControls.saturation = 1.3 + Float((tone - 0.5) * 1.0)
-    finalControls.contrast = 1.0 + Float((tone - 0.5) * 0.3) // Lowered contrast
-    finalControls.brightness = -0.1 // Darken the base so lines and neon pop more
+    finalControls.saturation = 1.1 + Float((tone - 0.5) * 1.0)
+    finalControls.contrast = 1.0 + Float((tone - 0.5) * 0.3)
+    finalControls.brightness = 0.05
     main = finalControls.outputImage ?? main
 
     // --- Shift colors toward Retro City Pop tones ---
