@@ -164,41 +164,56 @@ public class CityPopProcessorModule: Module {
     main = main.transformed(by: CGAffineTransform(scaleX: mainScale, y: mainScale))
     main = main.transformed(by: CGAffineTransform(translationX: -main.extent.origin.x, y: -main.extent.origin.y))
     
-    // --- Step 1: Smooth the original image for a painted look (Color Base) ---
-    // Using a bilateral or noise reduction filter to flatten details like an illustration
+    // --- Step 1: Brighten & Smooth Base (Anime flat colors need to be bright) ---
+    let gammaAdjust = CIFilter.gammaAdjust()
+    gammaAdjust.inputImage = main
+    gammaAdjust.power = 0.65 // Lower gamma = brighter midtones
+    var colorBase = gammaAdjust.outputImage ?? main
+    
     let noiseReduction = CIFilter.noiseReduction()
-    noiseReduction.inputImage = main
-    noiseReduction.noiseLevel = 0.08
-    noiseReduction.sharpness = 0.4
-    var colorBase = noiseReduction.outputImage ?? main
+    noiseReduction.inputImage = colorBase
+    noiseReduction.noiseLevel = 0.05
+    noiseReduction.sharpness = 0.2
+    colorBase = noiseReduction.outputImage ?? colorBase
     
     // --- Step 2: Posterize for Flat Anime Colors ---
     let posterize = CIFilter.colorPosterize()
     posterize.inputImage = colorBase
-    posterize.levels = 8.0 // Smoother levels for a cuter look (not too harsh like 5)
+    posterize.levels = 7.0 
     colorBase = posterize.outputImage ?? colorBase
     
-    // --- Step 3: Extract clean sketch lines ---
-    let lineOverlay = CIFilter.lineOverlay()
-    lineOverlay.inputImage = main
-    // Using simple lines extracted from the original, lineOverlay defaults are usually good
-    let lines = lineOverlay.outputImage ?? main
+    // --- Step 3: Strong Line Art Extraction using CIEdges ---
+    // First, convert to grayscale and increase contrast
+    let lineControls = CIFilter.colorControls()
+    lineControls.inputImage = main
+    lineControls.saturation = 0.0
+    lineControls.contrast = 2.0
+    let grayMain = lineControls.outputImage ?? main
+    
+    let edges = CIFilter.edges()
+    edges.inputImage = grayMain
+    edges.intensity = 5.0
+    let edgeImage = edges.outputImage ?? grayMain // This gives white lines on black
+    
+    // Invert to get black lines on white background
+    let invert = CIFilter.colorInvert()
+    invert.inputImage = edgeImage
+    let lines = invert.outputImage ?? edgeImage
     
     // --- Step 4: Blend Lines over Color Base ---
-    // Multiply blend since lines are black and background is white
+    // Multiply blend: black lines darken the base, white areas are invisible
     let blend = CIFilter.multiplyBlendMode()
     blend.inputImage = lines
     blend.backgroundImage = colorBase
     main = blend.outputImage ?? colorBase
     
-    // --- Step 5: City Pop Tone Mapping ---
-    // Lighter touch on contrast/saturation compared to before
-    let controls = CIFilter.colorControls()
-    controls.inputImage = main
-    controls.saturation = 1.15 + Float((tone - 0.5) * 1.0)
-    controls.contrast = 1.05 + Float((tone - 0.5) * 0.4)
-    controls.brightness = 0.02 // Lift shadows slightly so lines stand out
-    main = controls.outputImage ?? main
+    // --- Step 5: City Pop Tone Mapping (Lifting shadows further) ---
+    let finalControls = CIFilter.colorControls()
+    finalControls.inputImage = main
+    finalControls.saturation = 1.1 + Float((tone - 0.5) * 1.0)
+    finalControls.contrast = 1.0 + Float((tone - 0.5) * 0.3)
+    finalControls.brightness = 0.05 // Lift overall brightness to look less like a dark photo filter
+    main = finalControls.outputImage ?? main
 
     // --- Step 6: Shift colors toward Retro City Pop tones ---
     let matrix = CIFilter.colorMatrix()
@@ -206,22 +221,21 @@ public class CityPopProcessorModule: Module {
     
     switch mood.lowercased() {
     case "night":
-        // Cool blue/purple emphasis + preserve more natural colors
-        matrix.rVector = CIVector(x: 0.95, y: 0.0, z: 0.2, w: 0.0)
-        matrix.gVector = CIVector(x: 0.0, y: 0.95, z: 0.1, w: 0.0)
+        // Cool blue/purple emphasis
+        matrix.rVector = CIVector(x: 0.9, y: 0.0, z: 0.15, w: 0.0)
+        matrix.gVector = CIVector(x: 0.0, y: 0.9, z: 0.15, w: 0.0)
         matrix.bVector = CIVector(x: 0.0, y: 0.1, z: 1.15, w: 0.0)
     case "sunset":
         // Warm orange/red emphasis
         matrix.rVector = CIVector(x: 1.15, y: 0.1, z: 0.0, w: 0.0)
         matrix.gVector = CIVector(x: 0.1, y: 0.95, z: 0.0, w: 0.0)
-        matrix.bVector = CIVector(x: 0.0, y: 0.0, z: 0.95, w: 0.0)
+        matrix.bVector = CIVector(x: 0.0, y: 0.0, z: 0.9, w: 0.0)
     case "afterglow":
         // Pinkish neon vaporwave feel
         matrix.rVector = CIVector(x: 1.1, y: 0.0, z: 0.15, w: 0.0)
         matrix.gVector = CIVector(x: 0.0, y: 0.95, z: 0.1, w: 0.0)
         matrix.bVector = CIVector(x: 0.1, y: 0.1, z: 1.1, w: 0.0)
     default:
-        // Default slight boost
         matrix.rVector = CIVector(x: 1.05, y: 0.0, z: 0.0, w: 0.0)
         matrix.gVector = CIVector(x: 0.0, y: 1.05, z: 0.0, w: 0.0)
         matrix.bVector = CIVector(x: 0.0, y: 0.0, z: 1.05, w: 0.0)
