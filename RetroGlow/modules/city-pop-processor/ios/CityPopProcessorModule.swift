@@ -79,7 +79,7 @@ public class CityPopProcessorModule: Module {
     }
     multiplyFilter.setValue(scaledSketch, forKey: kCIInputImageKey)
     multiplyFilter.setValue(colorBase, forKey: kCIInputBackgroundImageKey)
-    var mainImage = multiplyFilter.outputImage ?? colorBase
+    mainImage = multiplyFilter.outputImage ?? colorBase
     // 8. Apply Neon Glow to the combined result
     mainImage = applyNeon(input: mainImage, neon: CGFloat(args.neon))
 
