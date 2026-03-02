@@ -183,8 +183,7 @@ public class CityPopProcessorModule: Module {
         modelURL = url
     } 
     // Check module bundle
-    else if let bundle = Bundle(identifier: "org.cocoapods.city-pop-processor") ?? Bundle(for: type(of: self)),
-            let url = bundle.url(forResource: "IllustrationAI", withExtension: "mlmodelc") {
+    else if let url = (Bundle(identifier: "org.cocoapods.city-pop-processor") ?? Bundle(for: type(of: self))).url(forResource: "IllustrationAI", withExtension: "mlmodelc") {
         modelURL = url
     }
 
