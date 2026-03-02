@@ -28,11 +28,14 @@ public class CityPopProcessorModule: Module {
 
   private func processImage(args: ProcessArgs) throws -> (uri: String, width: Int, height: Int) {
     let inputURL = args.inputUri.starts(with: "file://") ? URL(fileURLWithPath: args.inputUri.replacingOccurrences(of: "file://", with: "")) : URL(fileURLWithPath: args.inputUri)
-    let outputURL = args.outputUri.starts(with: "file://") ? URL(fileURLWithPath: args.outputUri.replacingOccurrences(of: "file://", with: "")) : URL(fileURLWithPath: args.outputUri)
+    
+    // Generate output URL natively
+    let filename = "citypop_\(Int(Date().timeIntervalSince1970 * 1000)).jpg"
+    let outputURL = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
 
-    // Ensure they are file URLs for Data operations
-    guard inputURL.isFileURL, outputURL.isFileURL else {
-      throw NSError(domain: "CityPop", code: 1, userInfo: [NSLocalizedDescriptionKey: "URIs must be file URLs"])
+    // Ensure input is file URL for Data operations
+    guard inputURL.isFileURL else {
+      throw NSError(domain: "CityPop", code: 1, userInfo: [NSLocalizedDescriptionKey: "Input URI must be a file URL"])
     }
 
     // Load Image & Fix Orientation

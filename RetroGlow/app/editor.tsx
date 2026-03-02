@@ -1,7 +1,6 @@
 import CityPopProcessor from '@/modules/city-pop-processor';
 import { Mood, useEditorStore } from '@/store/useEditorStore';
 import Slider from '@react-native-community/slider';
-import * as FileSystem from 'expo-file-system';
 import * as MediaLibrary from 'expo-media-library';
 import { useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
@@ -42,40 +41,12 @@ export default function EditorScreen() {
         };
     }, [params.mood, params.neon, params.tone, params.grain, params.title]);
 
-    const getOutputUri = (prefix: string) => {
-        let baseDir = FileSystem.cacheDirectory;
-        if (!baseDir) {
-            baseDir = FileSystem.documentDirectory;
-        }
-        if (!baseDir) {
-            baseDir = 'file:///tmp/';
-        }
-
-        // Remove trailing slash if it exists so we can add it uniformly
-        if (baseDir.endsWith('/')) {
-            baseDir = baseDir.slice(0, -1);
-        }
-
-        // Prepend file:// if necessary
-        if (!baseDir.startsWith('file://')) {
-            if (!baseDir.startsWith('/')) {
-                baseDir = `file:///${baseDir}`;
-            } else {
-                baseDir = `file://${baseDir}`;
-            }
-        }
-
-        return `${baseDir}/${prefix}_${Date.now()}.jpg`;
-    };
-
     const renderPreview = async () => {
         if (!inputUri) return;
         setIsRenderingPreview(true);
         try {
-            const outputUri = getOutputUri('preview');
             const result = await CityPopProcessor.process({
                 inputUri,
-                outputUri,
                 mood: params.mood,
                 neon: params.neon,
                 tone: params.tone,
@@ -96,10 +67,8 @@ export default function EditorScreen() {
 
     const renderFinal = async () => {
         if (!inputUri) return null;
-        const outputUri = getOutputUri('final');
         const result = await CityPopProcessor.process({
             inputUri,
-            outputUri,
             mood: params.mood,
             neon: params.neon,
             tone: params.tone,

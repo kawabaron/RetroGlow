@@ -1,7 +1,6 @@
 import { NativeModule } from 'expo';
 export type ProcessArgs = {
     inputUri: string;
-    outputUri: string;
     mood: "nightDrive" | "sunsetNeon" | "afterglow";
     neon: number;
     tone: number;
