@@ -27,9 +27,12 @@ public class CityPopProcessorModule: Module {
   }
 
   private func processImage(args: ProcessArgs) throws -> (uri: String, width: Int, height: Int) {
-    guard let inputURL = URL(string: args.inputUri),
-          let outputURL = URL(string: args.outputUri) else {
-      throw NSError(domain: "CityPop", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid URIs"])
+    let inputURL = args.inputUri.starts(with: "file://") ? URL(fileURLWithPath: args.inputUri.replacingOccurrences(of: "file://", with: "")) : URL(fileURLWithPath: args.inputUri)
+    let outputURL = args.outputUri.starts(with: "file://") ? URL(fileURLWithPath: args.outputUri.replacingOccurrences(of: "file://", with: "")) : URL(fileURLWithPath: args.outputUri)
+
+    // Ensure they are file URLs for Data operations
+    guard inputURL.isFileURL, outputURL.isFileURL else {
+      throw NSError(domain: "CityPop", code: 1, userInfo: [NSLocalizedDescriptionKey: "URIs must be file URLs"])
     }
 
     // Load Image & Fix Orientation
