@@ -164,48 +164,67 @@ public class CityPopProcessorModule: Module {
     main = main.transformed(by: CGAffineTransform(scaleX: mainScale, y: mainScale))
     main = main.transformed(by: CGAffineTransform(translationX: -main.extent.origin.x, y: -main.extent.origin.y))
     
-    // --- Step 1: Line Art & Illustration Effect (Comic) ---
-    let comic = CIFilter.comicEffect()
-    comic.inputImage = main
-    main = comic.outputImage ?? main
+    // --- Step 1: Smooth the original image for a painted look (Color Base) ---
+    // Using a bilateral or noise reduction filter to flatten details like an illustration
+    let noiseReduction = CIFilter.noiseReduction()
+    noiseReduction.inputImage = main
+    noiseReduction.noiseLevel = 0.08
+    noiseReduction.sharpness = 0.4
+    var colorBase = noiseReduction.outputImage ?? main
     
     // --- Step 2: Posterize for Flat Anime Colors ---
     let posterize = CIFilter.colorPosterize()
-    posterize.inputImage = main
-    posterize.levels = 5.0 // Reduce colors to create a painted look
-    main = posterize.outputImage ?? main
+    posterize.inputImage = colorBase
+    posterize.levels = 8.0 // Smoother levels for a cuter look (not too harsh like 5)
+    colorBase = posterize.outputImage ?? colorBase
     
-    // --- Step 3: City Pop Tone Mapping ---
+    // --- Step 3: Extract clean sketch lines ---
+    let lineOverlay = CIFilter.lineOverlay()
+    lineOverlay.inputImage = main
+    // Using simple lines extracted from the original, lineOverlay defaults are usually good
+    let lines = lineOverlay.outputImage ?? main
+    
+    // --- Step 4: Blend Lines over Color Base ---
+    // Multiply blend since lines are black and background is white
+    let blend = CIFilter.multiplyBlendMode()
+    blend.inputImage = lines
+    blend.backgroundImage = colorBase
+    main = blend.outputImage ?? colorBase
+    
+    // --- Step 5: City Pop Tone Mapping ---
+    // Lighter touch on contrast/saturation compared to before
     let controls = CIFilter.colorControls()
     controls.inputImage = main
-    controls.saturation = 1.3 + Float((tone - 0.5) * 1.5) // High saturation
-    controls.contrast = 1.2 + Float((tone - 0.5) * 0.5)
+    controls.saturation = 1.15 + Float((tone - 0.5) * 1.0)
+    controls.contrast = 1.05 + Float((tone - 0.5) * 0.4)
+    controls.brightness = 0.02 // Lift shadows slightly so lines stand out
     main = controls.outputImage ?? main
 
-    // --- Step 4: Shift colors toward Retro tones based on mood ---
+    // --- Step 6: Shift colors toward Retro City Pop tones ---
     let matrix = CIFilter.colorMatrix()
     matrix.inputImage = main
     
     switch mood.lowercased() {
     case "night":
-        // Deep blues & magentas
-        matrix.rVector = CIVector(x: 0.9, y: 0.0, z: 0.2, w: 0.0)
-        matrix.gVector = CIVector(x: 0.0, y: 0.8, z: 0.2, w: 0.0)
-        matrix.bVector = CIVector(x: 0.0, y: 0.0, z: 1.3, w: 0.0)
+        // Cool blue/purple emphasis + preserve more natural colors
+        matrix.rVector = CIVector(x: 0.95, y: 0.0, z: 0.2, w: 0.0)
+        matrix.gVector = CIVector(x: 0.0, y: 0.95, z: 0.1, w: 0.0)
+        matrix.bVector = CIVector(x: 0.0, y: 0.1, z: 1.15, w: 0.0)
     case "sunset":
-        // Strong reds & purples
-        matrix.rVector = CIVector(x: 1.3, y: 0.0, z: 0.0, w: 0.0)
-        matrix.gVector = CIVector(x: 0.2, y: 0.9, z: 0.0, w: 0.0)
-        matrix.bVector = CIVector(x: 0.0, y: 0.0, z: 0.9, w: 0.0)
+        // Warm orange/red emphasis
+        matrix.rVector = CIVector(x: 1.15, y: 0.1, z: 0.0, w: 0.0)
+        matrix.gVector = CIVector(x: 0.1, y: 0.95, z: 0.0, w: 0.0)
+        matrix.bVector = CIVector(x: 0.0, y: 0.0, z: 0.95, w: 0.0)
     case "afterglow":
-        // Pinkish neon hue
-        matrix.rVector = CIVector(x: 1.2, y: 0.0, z: 0.0, w: 0.0)
-        matrix.gVector = CIVector(x: 0.0, y: 0.9, z: 0.0, w: 0.0)
-        matrix.bVector = CIVector(x: 0.0, y: 0.0, z: 1.1, w: 0.0)
+        // Pinkish neon vaporwave feel
+        matrix.rVector = CIVector(x: 1.1, y: 0.0, z: 0.15, w: 0.0)
+        matrix.gVector = CIVector(x: 0.0, y: 0.95, z: 0.1, w: 0.0)
+        matrix.bVector = CIVector(x: 0.1, y: 0.1, z: 1.1, w: 0.0)
     default:
-        matrix.rVector = CIVector(x: 1.15, y: 0.0, z: 0.0, w: 0.0)
-        matrix.gVector = CIVector(x: 0.0, y: 0.95, z: 0.0, w: 0.0)
-        matrix.bVector = CIVector(x: 0.0, y: 0.0, z: 1.15, w: 0.0)
+        // Default slight boost
+        matrix.rVector = CIVector(x: 1.05, y: 0.0, z: 0.0, w: 0.0)
+        matrix.gVector = CIVector(x: 0.0, y: 1.05, z: 0.0, w: 0.0)
+        matrix.bVector = CIVector(x: 0.0, y: 0.0, z: 1.05, w: 0.0)
     }
     matrix.aVector = CIVector(x: 0.0, y: 0.0, z: 0.0, w: 1.0)
     main = matrix.outputImage ?? main
