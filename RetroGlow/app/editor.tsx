@@ -42,12 +42,37 @@ export default function EditorScreen() {
         };
     }, [params.mood, params.neon, params.tone, params.grain, params.title]);
 
+    const getOutputUri = (prefix: string) => {
+        let baseDir = FileSystem.cacheDirectory;
+        if (!baseDir) {
+            baseDir = FileSystem.documentDirectory;
+        }
+        if (!baseDir) {
+            baseDir = 'file:///tmp/';
+        }
+
+        // Remove trailing slash if it exists so we can add it uniformly
+        if (baseDir.endsWith('/')) {
+            baseDir = baseDir.slice(0, -1);
+        }
+
+        // Prepend file:// if necessary
+        if (!baseDir.startsWith('file://')) {
+            if (!baseDir.startsWith('/')) {
+                baseDir = `file:///${baseDir}`;
+            } else {
+                baseDir = `file://${baseDir}`;
+            }
+        }
+
+        return `${baseDir}/${prefix}_${Date.now()}.jpg`;
+    };
+
     const renderPreview = async () => {
         if (!inputUri) return;
         setIsRenderingPreview(true);
         try {
-            const baseDir = FileSystem.cacheDirectory || FileSystem.documentDirectory || 'file://';
-            const outputUri = `${baseDir}preview_${Date.now()}.jpg`;
+            const outputUri = getOutputUri('preview');
             const result = await CityPopProcessor.process({
                 inputUri,
                 outputUri,
@@ -71,8 +96,7 @@ export default function EditorScreen() {
 
     const renderFinal = async () => {
         if (!inputUri) return null;
-        const baseDir = FileSystem.cacheDirectory || FileSystem.documentDirectory || 'file://';
-        const outputUri = `${baseDir}final_${Date.now()}.jpg`;
+        const outputUri = getOutputUri('final');
         const result = await CityPopProcessor.process({
             inputUri,
             outputUri,
