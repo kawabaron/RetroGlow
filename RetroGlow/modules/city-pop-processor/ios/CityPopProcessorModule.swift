@@ -76,6 +76,7 @@ public class CityPopProcessorModule: Module {
     // and multiplies the black lines onto the colorBase.
     guard let multiplyFilter = CIFilter(name: "CIMultiplyBlendMode") else {
         throw NSError(domain: "CityPop", code: 3, userInfo: [NSLocalizedDescriptionKey: "Multiply Filter failed"])
+    }
     multiplyFilter.setValue(scaledSketch, forKey: kCIInputImageKey)
     multiplyFilter.setValue(colorBase, forKey: kCIInputBackgroundImageKey)
     var mainImage = multiplyFilter.outputImage ?? colorBase
