@@ -69,7 +69,7 @@ public class CityPopProcessorModule: Module {
     let toneMappedMLOutput = applyCityPopToneMapping(input: illustratedImage, tone: CGFloat(args.tone), mood: args.mood)
     
     // 6. Scale back to Target Size
-    var mainImage = formatMainLayer(input: toneMappedMLOutput, targetSize: targetSize)
+    mainImage = formatMainLayer(input: toneMappedMLOutput, targetSize: targetSize)
     // 8. Apply Neon Glow to the combined result
     mainImage = applyNeon(input: mainImage, neon: CGFloat(args.neon))
 
