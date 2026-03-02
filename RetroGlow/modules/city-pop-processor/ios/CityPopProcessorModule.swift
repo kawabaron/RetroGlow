@@ -3,6 +3,8 @@ import CoreImage
 import CoreImage.CIFilterBuiltins
 import UIKit
 import ExpoModulesCore
+import CoreML
+import Vision
 
 public class CityPopProcessorModule: Module {
   private let context = CIContext(options: [.useSoftwareRenderer: false])
@@ -54,13 +56,22 @@ public class CityPopProcessorModule: Module {
     // 1. Create Background (Blurred & Tinted)
     let bgImage = createBackgroundLayer(input: ciInputImage, targetSize: targetSize, mood: args.mood)
     
-    // 2. Create Main Overlay (Center Cropped to 9:16)
-    var mainImage = createMainLayer(input: ciInputImage, targetSize: targetSize, tone: CGFloat(args.tone), mood: args.mood)
+    // 2. Crop input to target aspect ratio before AI processing
+    let preCropped = formatMainLayer(input: ciInputImage, targetSize: targetSize)
     
-    // 3. Apply Neon Glow
+    // 3. AI Illustration Processing (Core ML)
+    let illustratedImage = try runCoreMLIllustrationModel(input: preCropped)
+    
+    // 4. Ensure AI Output is scaled back to Target Size (as models often resize to 512x512 etc.)
+    var mainImage = formatMainLayer(input: illustratedImage, targetSize: targetSize)
+    
+    // 5. Apply City Pop Tone
+    mainImage = applyCityPopToneMapping(input: mainImage, tone: CGFloat(args.tone), mood: args.mood)
+    
+    // 6. Apply Neon Glow
     mainImage = applyNeon(input: mainImage, neon: CGFloat(args.neon))
 
-    // Composite
+    // Composite Over Background
     guard let compositeFilter = CIFilter(name: "CISourceOverCompositing") else {
       throw NSError(domain: "CityPop", code: 3, userInfo: [NSLocalizedDescriptionKey: "Filter failed"])
     }
@@ -69,10 +80,10 @@ public class CityPopProcessorModule: Module {
     
     var finalCImage = compositeFilter.outputImage ?? bgImage
 
-    // 4. Apply Grain
+    // 7. Apply Grain
     finalCImage = applyGrain(input: finalCImage, grain: CGFloat(args.grain))
 
-    // 5. Apply Title
+    // 8. Apply Title
     finalCImage = applyTitle(input: finalCImage, title: args.title, targetSize: targetSize)
 
     // Render to JPEG
@@ -139,19 +150,17 @@ public class CityPopProcessorModule: Module {
     return colorMatrix.outputImage ?? bg
   }
 
-  private func createMainLayer(input: CIImage, targetSize: CGSize, tone: CGFloat, mood: String) -> CIImage {
+  private func formatMainLayer(input: CIImage, targetSize: CGSize) -> CIImage {
     // 9:16 aspect ratio center crop
     let inputAspect = input.extent.width / input.extent.height
     let targetAspect = 9.0 / 16.0
     
     var cropRect = input.extent
     if inputAspect > targetAspect {
-      // Input is wider, crop sides
       let newWidth = input.extent.height * targetAspect
       cropRect.origin.x += (input.extent.width - newWidth) / 2
       cropRect.size.width = newWidth
     } else {
-      // Input is taller, crop top/bottom
       let newHeight = input.extent.width / targetAspect
       cropRect.origin.y += (input.extent.height - newHeight) / 2
       cropRect.size.height = newHeight
@@ -163,59 +172,62 @@ public class CityPopProcessorModule: Module {
     let mainScale = targetSize.width / main.extent.width
     main = main.transformed(by: CGAffineTransform(scaleX: mainScale, y: mainScale))
     main = main.transformed(by: CGAffineTransform(translationX: -main.extent.origin.x, y: -main.extent.origin.y))
+    return main
+  }
+
+  private func runCoreMLIllustrationModel(input: CIImage) throws -> CIImage {
+    var modelURL: URL? = nil
     
-    // --- Step 1: Brighten & Smooth Base (Anime flat colors need to be bright) ---
-    let gammaAdjust = CIFilter.gammaAdjust()
-    gammaAdjust.inputImage = main
-    gammaAdjust.power = 0.65 // Lower gamma = brighter midtones
-    var colorBase = gammaAdjust.outputImage ?? main
+    // Check main app bundle
+    if let url = Bundle.main.url(forResource: "IllustrationAI", withExtension: "mlmodelc") {
+        modelURL = url
+    } 
+    // Check module bundle
+    else if let bundle = Bundle(identifier: "org.cocoapods.city-pop-processor") ?? Bundle(for: type(of: self)),
+            let url = bundle.url(forResource: "IllustrationAI", withExtension: "mlmodelc") {
+        modelURL = url
+    }
+
+    guard let finalURL = modelURL else {
+        throw NSError(domain: "CityPop", code: 10, userInfo: [NSLocalizedDescriptionKey: "[USER_ACTION_REQUIRED] AI Model 'IllustrationAI.mlmodelc' not found. Please follow instructions in scripts/setup_model.js to download an illustration CoreML model and place it in the ios directory."])
+    }
+
+    let mlModel = try MLModel(contentsOf: finalURL)
+    let visionModel = try VNCoreMLModel(for: mlModel)
+
+    var resultImage: CIImage?
+    let request = VNCoreMLRequest(model: visionModel) { request, error in
+        if let results = request.results as? [VNPixelBufferObservation], let pixelBuffer = results.first?.pixelBuffer {
+            resultImage = CIImage(cvPixelBuffer: pixelBuffer)
+        } else if let featureResults = request.results as? [VNCoreMLFeatureValueObservation],
+                  let pixelBuffer = featureResults.first?.featureValue.imageBufferValue {
+            resultImage = CIImage(cvPixelBuffer: pixelBuffer)
+        }
+    }
     
-    let noiseReduction = CIFilter.noiseReduction()
-    noiseReduction.inputImage = colorBase
-    noiseReduction.noiseLevel = 0.05
-    noiseReduction.sharpness = 0.2
-    colorBase = noiseReduction.outputImage ?? colorBase
+    request.imageCropAndScaleOption = .scaleFill
     
-    // --- Step 2: Posterize for Flat Anime Colors ---
-    let posterize = CIFilter.colorPosterize()
-    posterize.inputImage = colorBase
-    posterize.levels = 7.0 
-    colorBase = posterize.outputImage ?? colorBase
+    let context = CIContext(options: nil)
+    guard let cgImage = context.createCGImage(input, from: input.extent) else { return input }
+
+    let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+    try handler.perform([request])
     
-    // --- Step 3: Strong Line Art Extraction using CIEdges ---
-    // First, convert to grayscale and increase contrast
-    let lineControls = CIFilter.colorControls()
-    lineControls.inputImage = main
-    lineControls.saturation = 0.0
-    lineControls.contrast = 2.0
-    let grayMain = lineControls.outputImage ?? main
+    return resultImage ?? input
+  }
+
+  private func applyCityPopToneMapping(input: CIImage, tone: CGFloat, mood: String) -> CIImage {
+    var main = input
     
-    let edges = CIFilter.edges()
-    edges.inputImage = grayMain
-    edges.intensity = 5.0
-    let edgeImage = edges.outputImage ?? grayMain // This gives white lines on black
-    
-    // Invert to get black lines on white background
-    let invert = CIFilter.colorInvert()
-    invert.inputImage = edgeImage
-    let lines = invert.outputImage ?? edgeImage
-    
-    // --- Step 4: Blend Lines over Color Base ---
-    // Multiply blend: black lines darken the base, white areas are invisible
-    let blend = CIFilter.multiplyBlendMode()
-    blend.inputImage = lines
-    blend.backgroundImage = colorBase
-    main = blend.outputImage ?? colorBase
-    
-    // --- Step 5: City Pop Tone Mapping (Lifting shadows further) ---
+    // --- City Pop Tone Mapping ---
     let finalControls = CIFilter.colorControls()
     finalControls.inputImage = main
     finalControls.saturation = 1.1 + Float((tone - 0.5) * 1.0)
     finalControls.contrast = 1.0 + Float((tone - 0.5) * 0.3)
-    finalControls.brightness = 0.05 // Lift overall brightness to look less like a dark photo filter
+    finalControls.brightness = 0.05
     main = finalControls.outputImage ?? main
 
-    // --- Step 6: Shift colors toward Retro City Pop tones ---
+    // --- Shift colors toward Retro City Pop tones ---
     let matrix = CIFilter.colorMatrix()
     matrix.inputImage = main
     
