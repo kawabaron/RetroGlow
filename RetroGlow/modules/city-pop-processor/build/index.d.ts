@@ -1,3 +1,4 @@
+import { NativeModule } from 'expo';
 export type ProcessArgs = {
     inputUri: string;
     outputUri: string;
@@ -15,5 +16,8 @@ export type ProcessResult = {
     width: number;
     height: number;
 };
-declare const _default: any;
+declare class CityPopProcessorModule extends NativeModule {
+    process(args: ProcessArgs): Promise<ProcessResult>;
+}
+declare const _default: CityPopProcessorModule;
 export default _default;

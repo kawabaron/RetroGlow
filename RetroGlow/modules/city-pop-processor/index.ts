@@ -1,4 +1,4 @@
-import { requireNativeModule } from 'expo-modules-core';
+import { NativeModule, requireNativeModule } from 'expo';
 
 export type ProcessArgs = {
     inputUri: string;
@@ -19,4 +19,8 @@ export type ProcessResult = {
     height: number;
 };
 
-export default requireNativeModule('CityPopProcessor');
+declare class CityPopProcessorModule extends NativeModule {
+    process(args: ProcessArgs): Promise<ProcessResult>;
+}
+
+export default requireNativeModule<CityPopProcessorModule>('CityPopProcessor');
