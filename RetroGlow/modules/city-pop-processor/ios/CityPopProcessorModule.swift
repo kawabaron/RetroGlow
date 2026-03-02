@@ -208,22 +208,9 @@ public class CityPopProcessorModule: Module {
         }
         
         if let buffer = pixelBuffer {
-            // ML models often output float32 buffers in [-1, 1] or [0, 255] which CIImage interprets as completely blown out (white).
-            // Wrapping it in a basic CIImage first.
-            let rawImage = CIImage(cvPixelBuffer: buffer)
-            
-            // Normalize the output: If it's 0-255 float, scale it down to 0-1 for CoreImage.
-            let normalizeFilter = CIFilter.colorMatrix()
-            normalizeFilter.inputImage = rawImage
-            // Scale by 1/255 just in case it's outputting 0-255 floats that CIImage treats as > 1.0 (whiteout)
-            normalizeFilter.rVector = CIVector(x: 1.0/255.0, y: 0, z: 0, w: 0)
-            normalizeFilter.gVector = CIVector(x: 0, y: 1.0/255.0, z: 0, w: 0)
-            normalizeFilter.bVector = CIVector(x: 0, y: 0, z: 1.0/255.0, w: 0)
-            normalizeFilter.aVector = CIVector(x: 0, y: 0, z: 0, w: 1)
-            
-            // We use the normalized version if the original looks completely white, but usually ML models for style transfer output 0-255.
-            // Let's create a blend that prefers the normalized one.
-            resultImage = normalizeFilter.outputImage ?? rawImage
+            // Apply standard sRGB color space to ensure colors from CoreML are interpreted correctly
+            let colorSpace = CGColorSpace(name: CGColorSpace.sRGB)
+            resultImage = CIImage(cvPixelBuffer: buffer, options: [.colorSpace: colorSpace as Any])
         }
     }
     
@@ -246,8 +233,8 @@ public class CityPopProcessorModule: Module {
     let finalControls = CIFilter.colorControls()
     finalControls.inputImage = main
     finalControls.saturation = 1.1 + Float((tone - 0.5) * 1.0)
-    finalControls.contrast = 1.0 + Float((tone - 0.5) * 0.3)
-    finalControls.brightness = 0.05
+    finalControls.contrast = 1.0 + Float((tone - 0.5) * 0.2) // Less intense contrast curve
+    finalControls.brightness = 0.0 // No artificial base brightness
     main = finalControls.outputImage ?? main
 
     // --- Shift colors toward Retro City Pop tones ---
